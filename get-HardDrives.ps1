@@ -102,19 +102,3 @@ if (-not($MyCred)){
 $baseURI = "https://$($server)"
 
 Get-SystemElements -MyCred $MyCred -baseURI $baseURI -SystemPaths "/redfish/v1/Systems"
-
-#$URI = "$($baseURI)/redfish/v1/Systems"
-#$SystemURI = ((get-rest -uri $URI -MyCred $MyCred).Members)
-
-#ForEach ($System in $SystemURI){
-#   (get-rest -uri "https://$($server)$($System.'@odata.id')/Storage" -MyCred $MyCred)
-  
-#}
-
-
-
-#$URI = "https://10.83.16.90/redfish/v1/Systems/WZP22040XQK/Storage/MRAID"
-#$DriveList = (get-rest -uri $URI -MyCred $MyCred | select Drives)
-#$DriveList.Drives | %{
-#    $URI = "https://10.82.16.90/redfish/v1/Systems/"
-#}
