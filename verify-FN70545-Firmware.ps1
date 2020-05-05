@@ -38,6 +38,10 @@ function evaluate-disks {
     param(
         $DiskList
     )
+    begin{}
+    process{
+        
+    }
 
 }
 
@@ -69,6 +73,9 @@ if ($DefaultImc){
 #Initialize report variables 
 $FullDiskReportIndex = ''
 $FullDiskReport = ''
+
+#TODO We should allow import of system IPs or names from a CSV file or from the command line... Check each and make sure we loop through either or both if they exist.
+
 
 #Loop through servers.
 forEach ($IP in $CimcIPs) {
