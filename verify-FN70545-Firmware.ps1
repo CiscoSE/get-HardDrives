@@ -248,7 +248,6 @@ $ImpactedDiskResultIndex = ''
 $ImpactedDiskReport =''
 $ImpactedDiskReportFullPath = "$(format-path -FilePath $InventoryReportDir -FileName $ImpactedDiskReportFileName)"
 
-#TODO We should allow import of system IPs or names from a CSV file or from the command line... Check each and make sure we loop through either or both if they exist.
 
 if ($CimcIPs.count -gt 0){
     [array]$CIMCList += $CimcIPs
