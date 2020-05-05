@@ -89,6 +89,27 @@ function validateDirectory {
     }
 }
 
+Function format-path {
+    param(
+        [parameter(mandatory=$true)][string]$FilePath,
+        [parameter(mandatory=$true)][string]$FileName
+    )
+    begin{
+        Write-Verbose "FilePath: $($FilePath)"
+        Write-Verbose "FileName: $($FileName)"
+    }
+    process{
+        if ($FilePath -match "\$"){
+            return ($FilePath + $FileName)
+        }
+        Else{
+            
+            return ($FilePath + "\" + $FileName)
+    
+        }
+    }
+}
+
 Function get-CIMC {
     param(
         [string]$CimcIP,
@@ -160,9 +181,14 @@ if ($DefaultImc){
 #Validate Report Directories Exist
 validateDirectory -Directory $InventoryReportDir
 
+#Get Date Time Stamp for Reports
+$datetime = get-date -format yyyyMMdd-HHmmss
+$FullDiskReportFileName = "$($datetime)-FullDiskReport.html"
+
 #Initialize report variables 
 $FullDiskReportIndex = ''
 $FullDiskReport = ''
+$FullDiskReportFullPath = "$(format-path -FilePath $InventoryReportDir -FileName $FullDiskReportFileName)"
 
 #TODO We should allow import of system IPs or names from a CSV file or from the command line... Check each and make sure we loop through either or both if they exist.
 
@@ -178,12 +204,13 @@ forEach ($IP in $CimcIPs) {
             ConvertTo-Html -as Table -Fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
     }
     Else {
-        Write-Host -ForegroundColor Red "Unable to connect to $($CimcIPs)"
+        #TODO Do we write the system to the file with a connection report, or is the screen warning enough?
     }
     #TODO Produce report of systems that could not be reviewed because they were not accessible or returned no disks. 
 
 }
 $FullDiskReportIndex
-convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport) -Title "Disk Report" | out-file ./TestReport.html
+convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport) -Title "Disk Report" | out-file  $FullDiskReportFullPath
+
 
 
