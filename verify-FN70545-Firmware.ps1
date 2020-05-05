@@ -13,9 +13,11 @@ IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 or implied.
 
 .PARAMETER CimcIPs
-This can be an IP or resolvable name. You can provide more then one server using
-this option by including multiple names or IPs separated by commas. Do not 
-include any spaces between systems.
+This can be an IP or resolvable name for a Cisco Integerated Management Controller.
+You can provide more then one server using this option by including multiple names 
+or IPs separated by commas. Do not include any spaces between systems.
+
+If you do not include this variable, you must include a path to a CSV.
 
 .PARAMETER Cred
 If you already have a PSCredential object with the user name and password, 
@@ -33,12 +35,19 @@ automatically.
 By default this will create a directory named Report as a subdirectory of the folder
 PowerShell was in when you ran the script. We check for the presence of that folder
 and create it if it does not already exist.
+
+.PARAMETER CSVFile
+Allows for a CSV File to be provided. The only column that matters in the CSV is the
+"Server" column. Any others will ignored. The Server column must contain a Ip 
+address or a resolvable name to the CIMC of the server. 
+
 #>
 [cmdletbinding()]
 param(
     [parameter(mandatory=$false)][array]$CimcIPs,
     [parameter(mandatory=$true)][pscredential]$Cred,
-    [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/"
+    [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/",
+    [parameter(mandatory=$false)][string]$CSVFile
 )
 
 [array]$Global:ImpactedDiskModelList = @(
@@ -145,9 +154,7 @@ Function get-CIMC {
         $ConnectionStatus = $False
         write-screen -type WARN -message "Failed to connect to $($CimcIP)"
     }
-
-    return $ConnectionStatus, $DiskList
-    
+    return $ConnectionStatus, $DiskList   
 }
 
 function evaluate-disks {
@@ -184,6 +191,22 @@ function evaluate-disks {
 
 }
 
+Function get-ServerList{
+    Param(
+        [parameter(Mandatory=$True)][string]$CSVFile
+    )
+    if (test-path $CSVFile){
+        write-screen -type INFO "CSV File $($CSVFile) found."
+        $Content = (get-content $CSVFile | Convertfrom-Csv).server
+        If ($Content.count -gt 0){
+            Return $Content
+        } 
+    }
+    else{
+        write-screen -type WARN "CSV File $($CSVFile) not found."
+    }
+    return
+}
 
 #Used for formatting in reports.
 $CSS = @"
@@ -202,7 +225,6 @@ $CSS = @"
     table { width:95%;margin-left:5px; margin-bottom:20px;}
     </Style>
 "@
-
 
 #To avoid errors later, we disconnect the IMC before we do anything else
 if ($DefaultImc){
@@ -228,9 +250,19 @@ $ImpactedDiskReportFullPath = "$(format-path -FilePath $InventoryReportDir -File
 
 #TODO We should allow import of system IPs or names from a CSV file or from the command line... Check each and make sure we loop through either or both if they exist.
 
+if ($CimcIPs.count -gt 0){
+    [array]$CIMCList += $CimcIPs
+} 
+If ($CSVFile){
+    [array]$CIMCList += (get-ServerList -CSVFile $CSVFile)
+}
+
+if ($CIMCList -eq $null){
+    write-screen -type FAIL -message "No machines recieved in the list to process"
+}
 
 #Loop through servers.
-forEach ($IP in $CimcIPs) {
+forEach ($IP in $CimcList) {
     if ($DiskList) {Remove-Variable DiskList}
     write-screen -type INFO -message "Reviewing $IP Disks"
     $ConnectionStatus, $DiskList = get-CIMC -CimcIP $IP -Cred $Cred
