@@ -44,7 +44,7 @@ param(
 [array]$Global:ImpactedDiskModelList = @(
     "SDLTODKM-400G-5CC1",
     "SDLTOCKM-016T-5CC1"#,
-    "MZ7LM960HMJP"#            #Used only for testing during development
+    #"MZ7LM960HMJP"#            #Used only for testing during development
 
 )
 
