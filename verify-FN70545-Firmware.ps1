@@ -42,7 +42,7 @@ param(
     [parameter(mandatory=$true)][pscredential]$Cred,
     [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/"
 )
-
+$ErrorActionPreference = 'Continue'  #Other actions: Stop or SilentlyContinue
 function write-screen {
     param(
         [parameter(mandatory=$false,position=0)]
@@ -98,6 +98,7 @@ Function get-CIMC {
     $connect = connect-imc $CimcIP -Credential $cred -ErrorAction SilentlyContinue
     if ($DefaultIMC) {
         $ConnectionStatus = $true
+        write-screen -type INFO -message "`tConnection Established to $($DefaultIMC.Name)"
             $DiskList = Get-ImcPidCataloghdd |
                Select `
                     @{Name='Server';             Expression={$DefaultImc.Name}},
@@ -113,6 +114,7 @@ Function get-CIMC {
     }
     else{
         $ConnectionStatus = $False
+        write-screen -type WARN -message "Failed to connect to $($CimcIP)"
     }
 
     return $ConnectionStatus, $DiskList
@@ -157,7 +159,6 @@ if ($DefaultImc){
 
 #Validate Report Directories Exist
 validateDirectory -Directory $InventoryReportDir
-exit
 
 #Initialize report variables 
 $FullDiskReportIndex = ''
@@ -169,6 +170,7 @@ $FullDiskReport = ''
 #Loop through servers.
 forEach ($IP in $CimcIPs) {
     if ($DiskList) {Remove-Variable DiskList}
+    write-screen -type INFO -message "Reviewing $IP Disks"
     $ConnectionStatus, $DiskList = get-CIMC -CimcIP $IP -Cred $Cred
     if ($ConnectionStatus = $True ) {
         $FullDiskReportIndex += "<H3><a href='#$($IP)'>$($IP)</a></h3>"
