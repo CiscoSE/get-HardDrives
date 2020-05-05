@@ -31,7 +31,7 @@ automatically.
 
 .PARAMETER InventoryReportDir
 By default this will create a directory named Report as a subdirectory of the folder
-PowerShell was in when you ran the script. We check for the presense of that folder
+PowerShell was in when you ran the script. We check for the presence of that folder
 and create it if it does not already exist.
 #>
 [cmdletbinding()]
@@ -43,7 +43,9 @@ param(
 
 [array]$Global:ImpactedDiskModelList = @(
     "SDLTODKM-400G-5CC1",
-    "SDLTOCKM-016T-5CC1"
+    "SDLTOCKM-016T-5CC1"#,
+    "MZ7LM960HMJP"#            #Used only for testing during development
+
 )
 
 $ErrorActionPreference = 'Continue'  #Other actions: Stop or SilentlyContinue
@@ -164,13 +166,19 @@ function evaluate-disks {
                 Write-Verbose "Disk we want to know about: $($Disk.'Vendor Drive Model')"
                 if ($Disk.'Vendor Drive Model' -match $ImpactedDisk){
                    write-screen -type WARN -message "`t`t`tDisk is part of the this Field Notice - Further review required"
-                   [array]$returnreport += $Disk 
-                   $impacted = $False
+                   [array]$returnReport += $Disk 
+                   $impacted = $True
                 }
             }
             If ($impacted -eq $false){
                 write-Screen -type INFO -message "`t`t`tDisk is not impacted by this field notice"
             }
+        }
+        if ($returnReport){
+            return $true, $ReturnReport
+        }
+        else{
+            return $False, ''
         }
     }
 
@@ -207,11 +215,16 @@ validateDirectory -Directory $InventoryReportDir
 #Get Date Time Stamp for Reports
 $datetime = get-date -format yyyyMMdd-HHmmss
 $FullDiskReportFileName = "$($datetime)-FullDiskReport.html"
+$ImpactedDiskReportFileName ="$($datetime)-ImpactedDiskReport.html"
 
 #Initialize report variables 
 $FullDiskReportIndex = ''
 $FullDiskReport = ''
 $FullDiskReportFullPath = "$(format-path -FilePath $InventoryReportDir -FileName $FullDiskReportFileName)"
+
+$ImpactedDiskResultIndex = ''
+$ImpactedDiskReport =''
+$ImpactedDiskReportFullPath = "$(format-path -FilePath $InventoryReportDir -FileName $ImpactedDiskReportFileName)"
 
 #TODO We should allow import of system IPs or names from a CSV file or from the command line... Check each and make sure we loop through either or both if they exist.
 
@@ -226,17 +239,23 @@ forEach ($IP in $CimcIPs) {
         $FullDiskReport += $DiskList | 
             ConvertTo-Html -as Table -Fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
         if ($DiskList -ne '') {
-            evaluate-disks -DiskList $DiskList
+            $DiskEvaluationResult, $DiskEvaluationReport = evaluate-disks -DiskList $DiskList
+            if ($DiskEvaluationResult){
+                $ImpactedDiskResultIndex += "<H3><a href='#$($IP)'>$($IP)</a></h3>"
+
+                $ImpactedDiskReport += $DiskEvaluationReport | 
+                    ConvertTo-Html -as table -fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
+            }
         }
     }
     Else {
         #TODO Do we write the system to the file with a connection report, or is the screen warning enough?
     }
-    #TODO Produce report of systems that could not be reviewed because they were not accessible or returned no disks. 
+
 
 }
 
-convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport) -Title "Disk Report" | out-file  $FullDiskReportFullPath
-
+convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport)         -Title "Full Disk Report"     | out-file $FullDiskReportFullPath
+convertto-html -head $css -Body ($ImpactedDiskResultIndex + $ImpactedDiskReport) -Title "Impacted Disk Report" | out-file $ImpactedDiskReportFullPath
 
 
