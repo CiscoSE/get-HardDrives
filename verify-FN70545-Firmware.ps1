@@ -26,14 +26,68 @@ the script.
 All servers to be assessed by this script must use the same user name and password
 for access to the CIMC in order for this script to work.
 
+If you do not provide this information as an argument, it will be requested
+automatically.
+
+.PARAMETER InventoryReportDir
+By default this will create a directory named Report as a subdirectory of the folder
+PowerShell was in when you ran the script. We check for the presense of that folder
+and create it if it does not already exist.
 #>
 
 
 [cmdletbinding()]
 param(
-    [parameter(mandatory=$true)][array]$CimcIPs,
-    [parameter(mandatory=$true)][pscredential]$Cred
+    [parameter(mandatory=$false)][array]$CimcIPs,
+    [parameter(mandatory=$true)][pscredential]$Cred,
+    [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/"
 )
+
+function write-screen {
+    param(
+        [parameter(mandatory=$false,position=0)]
+            [ValidatePattern("INFO|FAIL|WARN")]
+                                               [string]$type = "INFO",
+        [parameter(mandatory=$true,Position=1)][string]$message
+     )
+    switch($type){
+        "INFO" {$Color = "Green";  break}
+        "FAIL" {$Color = "RED";    break}
+        "WARN" {$Color = "Yellow"; break}
+    }
+    write-host " [ " -NoNewline
+    write-host $type -ForegroundColor $color -NoNewline
+    write-host " ]     " -NoNewline
+    write-host $message
+    if ($type -eq "FAIL") {
+        exit
+    }    
+}
+
+function validateDirectory {
+    param(
+        [parameter(mandatory=$true)][string]$Directory
+    )
+    begin {
+        write-screen -type INFO -message "Checking $Directory Exists"
+    }
+    process{
+        $error.clear()
+        if ( -not (test-path $directory)){
+            $result = md $directory
+            if ($error[0]){
+                write-screen -type WARN -message "Directory $Directory does not exist and could not be created"
+                Write-screen -type FAIL -message "Directory $Directory must be created and writable to continue."
+            }
+            else{
+                Write-screen -type INFO -message "Directory $Directory created"
+            }
+        }
+        else{
+            Write-Screen -type INFO -message "$Directory Directory Exists"
+        }
+    }
+}
 
 Function get-CIMC {
     param(
@@ -100,6 +154,10 @@ $CSS = @"
 if ($DefaultImc){
     disconnect-imc
 }
+
+#Validate Report Directories Exist
+validateDirectory -Directory $InventoryReportDir
+exit
 
 #Initialize report variables 
 $FullDiskReportIndex = ''
