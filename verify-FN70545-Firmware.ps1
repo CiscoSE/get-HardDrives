@@ -34,15 +34,21 @@ By default this will create a directory named Report as a subdirectory of the fo
 PowerShell was in when you ran the script. We check for the presense of that folder
 and create it if it does not already exist.
 #>
-
-
 [cmdletbinding()]
 param(
     [parameter(mandatory=$false)][array]$CimcIPs,
     [parameter(mandatory=$true)][pscredential]$Cred,
     [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/"
 )
+
+[array]$Global:ImpactedDiskModelList = @(
+    "SDLTODKM-400G-5CC1",
+    "SDLTOCKM-016T-5CC1"
+)
+
 $ErrorActionPreference = 'Continue'  #Other actions: Stop or SilentlyContinue
+
+
 function write-screen {
     param(
         [parameter(mandatory=$false,position=0)]
@@ -146,9 +152,26 @@ function evaluate-disks {
     param(
         $DiskList
     )
-    begin{}
+    begin{
+        Write-Verbose "Reviewing Disk List"
+    }
     process{
-        
+        Foreach ($Disk in $DiskList){
+            write-screen -type INFO -message "`t`tEvaluating $($Disk.'Vendor Drive Model')"
+            $Impacted = $false
+            foreach ($ImpactedDisk in $Global:ImpactedDiskModelList){
+                write-verbose "From List of Impacted Disks: $($ImpactedDisk)"
+                Write-Verbose "Disk we want to know about: $($Disk.'Vendor Drive Model')"
+                if ($Disk.'Vendor Drive Model' -match $ImpactedDisk){
+                   write-screen -type WARN -message "`t`t`tDisk is part of the this Field Notice - Further review required"
+                   [array]$returnreport += $Disk 
+                   $impacted = $False
+                }
+            }
+            If ($impacted -eq $false){
+                write-Screen -type INFO -message "`t`t`tDisk is not impacted by this field notice"
+            }
+        }
     }
 
 }
@@ -202,6 +225,9 @@ forEach ($IP in $CimcIPs) {
         $FullDiskReportIndex += "<H3><a href='#$($IP)'>$($IP)</a></h3>"
         $FullDiskReport += $DiskList | 
             ConvertTo-Html -as Table -Fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
+        if ($DiskList -ne '') {
+            evaluate-disks -DiskList $DiskList
+        }
     }
     Else {
         #TODO Do we write the system to the file with a connection report, or is the screen warning enough?
@@ -209,7 +235,7 @@ forEach ($IP in $CimcIPs) {
     #TODO Produce report of systems that could not be reviewed because they were not accessible or returned no disks. 
 
 }
-$FullDiskReportIndex
+
 convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport) -Title "Disk Report" | out-file  $FullDiskReportFullPath
 
 
