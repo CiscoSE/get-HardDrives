@@ -82,7 +82,6 @@ $Global:ImpactedDiskModelList = [XML]'
         <GoodFirmwareVersion>C405</GoodFirmwareVersion>
     </Disk>
 </Disks>
-
 '
 
 $ErrorActionPreference = 'Continue'  #Other actions: Stop or SilentlyContinue
@@ -191,6 +190,7 @@ Function get-CIMC {
          @{Name='Server';             Expression={$_.Server}},
          @{Name='Server Model';       Expression={$_.Model}},
          @{Name='Server Firmware';    Expression={$_.Version}},
+         @{Name='Description';        Expression={$_.Description}},
          @{Name='Disk Controller';    Expression={$_.Controller}},
          @{Name='Cisco Product ID';   Expression={$_.Pid}},
          @{Name='Vendor Drive Model'; Expression={$_.ProductId}},
@@ -317,34 +317,47 @@ If ($CSVFile){
 if ($CIMCList -eq $null){
     write-screen -type FAIL -message "No machines recieved in the list to process"
 }
+Function formatReportData{
+    param(
+    [parameter(mandatory=$true)]$DiskList,
+    [parameter(mandatory=$true)][string]$PreContent
+    )
+    return ($DiskList | select `
+        'Description',
+        'Disk Controller', 
+        'Cisco Product ID', 
+        'Vendor Drive Model', 
+        'Drive#', 
+        'Drive Vendor', 
+        'Drive Serial#', 
+        'Drive Firmware' |
+            ConvertTo-Html -as table -fragment -PreContent ($PreContent -replace "<table>","<table style='width:50%'>"))
 
+}
 #Loop through servers.
 forEach ($IP in $CimcList) {
     if ($DiskList) {Remove-Variable DiskList}
     write-screen -type INFO -message "Reviewing $IP Disks"
     $ConnectionStatus, $DiskList = get-CIMC -CimcIP $IP -Cred $Cred
     if ($ConnectionStatus = $True ) {
-        $FullDiskReportIndex += "<H3><a href='#$($IP)'>$($IP)</a></h3>"
-        $FullDiskReport += $DiskList | 
-            ConvertTo-Html -as Table -Fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
+        $ServerPropertyHTML = $DiskList | select Server, 'Server Model', 'Server Firmware' -first 1 |
+            ConvertTo-Html -as List -Fragment
+        $IndexLine = "<H3><a href='#$($IP)'>$($IP)</a></h3>"
+        $PreContentDeviceInfo = "<H2 id='$($IP)'>$IP Report</H2>$($ServerPropertyHTML)"
+        $FullDiskReportIndex += $IndexLine
+        $FullDiskReport += (formatReportData -DiskList $DiskList -PreContent $PreContentDeviceInfo)
         if ($DiskList -ne '') {
             $DiskEvaluationResult, $DiskEvaluationReport = evaluate-disks -DiskList $DiskList
             if ($DiskEvaluationResult){
-                $ImpactedDiskResultIndex += "<H3><a href='#$($IP)'>$($IP)</a></h3>"
-
-                $ImpactedDiskReport += $DiskEvaluationReport | 
-                    ConvertTo-Html -as table -fragment -PreContent "<H2 id='$($IP)'>$IP Report</H2>"
+                $ImpactedDiskResultIndex += $IndexLine
+                $ImpactedDiskReport += (formatReportData -DiskList $DiskEvaluationReport -PreContent "$($PreContentDeviceInfo)")
             }
         }
     }
-    Else {
-        #TODO Do we write the system to the file with a connection report, or is the screen warning enough?
-    }
-
-
 }
 
-convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport)         -Title "Full Disk Report"     | out-file $FullDiskReportFullPath
-convertto-html -head $css -Body ($ImpactedDiskResultIndex + $ImpactedDiskReport) -Title "Impacted Disk Report" | out-file $ImpactedDiskReportFullPath
-
+convertto-html -head $CSS -Body ($FullDiskReportIndex + $FullDiskReport)             -Title "Full Disk Report"     | out-file $FullDiskReportFullPath
+if ($ImpactedDiskReport) {
+    convertto-html -head $css -Body ($ImpactedDiskResultIndex + $ImpactedDiskReport) -Title "Impacted Disk Report" | out-file $ImpactedDiskReportFullPath
+}
 
