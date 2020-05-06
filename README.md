@@ -31,10 +31,10 @@ Example 3
 
 This will look for a column in the CSV file named "Server" and will run a report for each IP or resolvable name found in the Server field. An example csv file would look like this:
 
->Server
->1.1.1.1
->1.1.1.2
->somecimc.yourdomain.local
+>Server<br/>
+>1.1.1.1<br/>
+>1.1.1.2<br/>
+>somecimc.yourdomain.local<br/>
 
 You can combine the -CSV and -CimcIPs switches and both will be evaluated. 
 
