@@ -17,24 +17,24 @@ The PowerShell script communicates with the CIMC itself via IP, and does not int
 The most common ways to run the script are as follows:
 
 Example 1
-verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1
+>verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1
 
 This will run a report on the IP or fully qualified domain name passed to -CimcIPs
 
 Example 2
-verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1,1.1.1.2,somecimc.yourdomain.local
+>verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1,1.1.1.2,somecimc.yourdomain.local
 
 This will run a report on more each IP passed to -CimcIPs. Do not include spaces between IP addresses or dns names. Separate each with a comma.
 
 Example 3
-verify-FN70545-Firmware.ps1 -CSVFile ./Servers.csv
+>verify-FN70545-Firmware.ps1 -CSVFile ./Servers.csv
 
 This will look for a column in the CSV file named "Server" and will run a report for each IP or resolvable name found in the Server field. An example csv file would look like this:
 
-Server
-1.1.1.1
-1.1.1.2
-somecimc.yourdomain.local
+>Server
+>1.1.1.1
+>1.1.1.2
+>somecimc.yourdomain.local
 
 You can combine the -CSV and -CimcIPs switches and both will be evaluated. 
 
