@@ -41,6 +41,28 @@ Allows for a CSV File to be provided. The only column that matters in the CSV is
 "Server" column. Any others will ignored. The Server column must contain a Ip 
 address or a resolvable name to the CIMC of the server. 
 
+.EXAMPLE
+./verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1
+
+Get drive properties from a single stand-alone server where 1.1.1.1 is the IP address of
+the CIMC for that server.
+
+.EXAMPLE
+./verify-FN70545-Firmware.ps1 -CimcIPs 1.1.1.1,1.1.1.2
+
+Get drive properties from a two stand-alone servers where 1.1.1.1 and 1.1.1.2 are the IP addresses of
+the CIMCs for those servers.
+
+.EXAMPLE
+./verify-FN70545-Firmware.ps1 -CVSFile ./ServerList.csv
+
+Get drive information for all servers listed in the Serverlist.csv file.
+
+.EXAMPLE
+./verify-FN70545-Firmware.ps1 -CVSFile ./ServerList.csv -CimcIPs 1.1.1.1,1.1.1.2
+
+Get drive information for all servers in the CSV, and also from 1.1.1.1 and 1.1.1.2
+
 #>
 [cmdletbinding()]
 param(
@@ -50,15 +72,20 @@ param(
     [parameter(mandatory=$false)][string]$CSVFile
 )
 
-[array]$Global:ImpactedDiskModelList = @(
-    "SDLTODKM-400G-5CC1",
-    "SDLTOCKM-016T-5CC1"#,
-    #"MZ7LM960HMJP"#            #Used only for testing during development
+#Built as XML object so that GoodFirmware can have many disks with many firmware.
+$Global:ImpactedDiskModelList = [XML]'
+<Disks>
+    <Disk Name="SDLTODKM-400G-5CC1">
+        <GoodFirmwareVersion>C405</GoodFirmwareVersion>
+    </Disk>
+    <Disk Name="SDLTODKM-016T-5CC1">
+        <GoodFirmwareVersion>C405</GoodFirmwareVersion>
+    </Disk>
+</Disks>
 
-)
+'
 
 $ErrorActionPreference = 'Continue'  #Other actions: Stop or SilentlyContinue
-
 
 function write-screen {
     param(
@@ -132,29 +159,46 @@ Function get-CIMC {
         [string]$CimcIP,
         [pscredential]$cred
     )
-    $DiskList = ''
+
     $connect = connect-imc $CimcIP -Credential $cred -ErrorAction SilentlyContinue
+    
     if ($DefaultIMC) {
         $ConnectionStatus = $true
         write-screen -type INFO -message "`tConnection Established to $($DefaultIMC.Name)"
-            $DiskList = Get-ImcPidCataloghdd |
-               Select `
-                    @{Name='Server';             Expression={$DefaultImc.Name}},
-                    @{Name='Server Model';       Expression={$DefaultImc.Model}},
-                    @{Name='Server Firmware';    Expression={$DefaultImc.Version}},
-                    @{Name='Disk Controller';    Expression={$_.Controller}},
-                    @{Name='Cisco Product ID';   Expression={$_.Pid}},
-                    @{Name='Vendor Drive Model'; Expression={$_.Model}},
-                    @{Name='Drive#';             Expression={$_.Disk}},
-                    @{Name='Drive Vendor';       Expression={$_.Vendor}},
-                    @{Name='Drive Serial#';      Expression={$_.SerialNumber}}
+        $DiskList = Get-ImcStorageLocalDisk
+        $Catalog = @{}
+        Get-ImcPidCatalogHdd | %{$catalog[$_.Disk]=$_}
+        $DiskArray = [System.Collections.ArrayList]@()
+        forEach ($Disk in $DiskList){
+            $Disk | add-Member NoteProperty -Name "Server"      -Value $DefaultIMC.Name
+            $Disk | add-Member NoteProperty -Name "Model"       -Value $DefaultIMC.Model
+            $Disk | Add-Member NoteProperty -Name "Version"     -Value $DefaultIMC.Version
+            $Disk | Add-Member NoteProperty -Name "Pid"         -Value $Catalog[$Disk.Id].Pid
+            $Disk | Add-Member NoteProperty -Name "Description" -Value $Catalog[$Disk.Id].Description
+            $Disk | Add-Member NoteProperty -Name "Controller"  -Value $Catalog[$Disk.Id].Controller
+            $DiskArray.add($Disk) | Out-Null
+        }
+      
         $Disconnect = disconnect-imc
     }
     else{
         $ConnectionStatus = $False
         write-screen -type WARN -message "Failed to connect to $($CimcIP)"
     }
-    return $ConnectionStatus, $DiskList   
+    
+    return $ConnectionStatus, ($DiskArray|
+        Select `
+         @{Name='Server';             Expression={$_.Server}},
+         @{Name='Server Model';       Expression={$_.Model}},
+         @{Name='Server Firmware';    Expression={$_.Version}},
+         @{Name='Disk Controller';    Expression={$_.Controller}},
+         @{Name='Cisco Product ID';   Expression={$_.Pid}},
+         @{Name='Vendor Drive Model'; Expression={$_.ProductId}},
+         @{Name='Drive#';             Expression={$_.Id}},
+         @{Name='Drive Vendor';       Expression={$_.Vendor}},
+         @{Name='Drive Serial#';      Expression={$_.DriveSerialNumber}},
+         @{Name='Drive Firmware';     Expression={$_.DriveFirmware}}
+        )
 }
 
 function evaluate-disks {
@@ -168,17 +212,31 @@ function evaluate-disks {
         Foreach ($Disk in $DiskList){
             write-screen -type INFO -message "`t`tEvaluating $($Disk.'Vendor Drive Model')"
             $Impacted = $false
-            foreach ($ImpactedDisk in $Global:ImpactedDiskModelList){
-                write-verbose "From List of Impacted Disks: $($ImpactedDisk)"
-                Write-Verbose "Disk we want to know about: $($Disk.'Vendor Drive Model')"
-                if ($Disk.'Vendor Drive Model' -match $ImpactedDisk){
-                   write-screen -type WARN -message "`t`t`tDisk is part of the this Field Notice - Further review required"
-                   [array]$returnReport += $Disk 
-                   $impacted = $True
+            forEach ($ImpactedDisk in $Global:ImpactedDiskModelList.Disks.Disk){
+                $FirmwareFound = $False
+                Write-Verbose "Checking for Disk: $($ImpactedDisk.Name)"
+                Write-Verbose "Disk we are checking: $($Disk.'Vendor Drive Model')"
+                If ($Disk.'Vendor Drive Model' -match $ImpactedDisk.Name){
+                    $Impacted = $True
+                    #Check Firmware Version
+                    ForEach ($Firmware in $ImpactedDisk.GoodFirmwareVersion){
+                        write-Verbose "Good Firmware we are looking for: $($Firmware)"
+                        Write-Verbose "Firmware on the drive: $($Disk.'Drive Firmware')"
+                        If ($Firmware -eq $Disk.'Drive Firmware'){
+                            $FirmwareFound = $True
+                            write-screen -type INFO -message "`t`t`tFirmware is a known good release - Firmware Found: $($Firmware)"
+                        }
+                    }
                 }
             }
+            if ($Impacted -eq $True){write-screen -type INFO -message "`t`t`tThis disk is an impacted model"}
+
             If ($impacted -eq $false){
                 write-Screen -type INFO -message "`t`t`tDisk is not impacted by this field notice"
+            }
+            if ($impacted -eq $True -and $FirmwareFound -eq $False){
+                write-screen -type WARN -message "`t`t`tA firmware update review for this disk is highly recommended"
+                [array]$returnReport += $Disk
             }
         }
         if ($returnReport){
