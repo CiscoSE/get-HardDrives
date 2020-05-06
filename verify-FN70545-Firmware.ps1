@@ -59,7 +59,7 @@ the CIMCs for those servers.
 Get drive information for all servers listed in the Serverlist.csv file.
 
 .EXAMPLE
-./verify-FN70545-Firmware.ps1 -CVSFile ./ServerList.csv -CimcIPs 1.1.1.1,1.1.1.2
+./verify-FN70545-Firmware.ps1 -CSVFile ./ServerList.csv -CimcIPs 1.1.1.1,1.1.1.2
 
 Get drive information for all servers in the CSV, and also from 1.1.1.1 and 1.1.1.2
 
@@ -68,7 +68,7 @@ Get drive information for all servers in the CSV, and also from 1.1.1.1 and 1.1.
 param(
     [parameter(mandatory=$false)][array]$CimcIPs,
     [parameter(mandatory=$true)][pscredential]$Cred,
-    [parameter(mandatory=$false)][string]$InventoryReportDir = "./Report/",
+    [parameter(mandatory=$false)][string]$InventoryReportDir = "./Reports",
     [parameter(mandatory=$false)][string]$CSVFile
 )
 
