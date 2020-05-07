@@ -117,7 +117,7 @@ function validateDirectory {
     process{
         $error.clear()
         if ( -not (test-path $directory)){
-            $result = md $directory
+            mkdir $directory | out-null
             if ($error[0]){
                 write-screen -type WARN -message "Directory $Directory does not exist and could not be created"
                 Write-screen -type FAIL -message "Directory $Directory must be created and writable to continue."
@@ -159,7 +159,7 @@ Function get-CIMC {
         [pscredential]$cred
     )
 
-    $connect = connect-imc $CimcIP -Credential $cred -ErrorAction SilentlyContinue
+    connect-imc $CimcIP -Credential $cred -ErrorAction SilentlyContinue | out-null
     
     if ($DefaultIMC) {
         $ConnectionStatus = $true
@@ -178,7 +178,7 @@ Function get-CIMC {
             $DiskArray.add($Disk) | Out-Null
         }
       
-        $Disconnect = disconnect-imc
+        disconnect-imc | out-null
     }
     else{
         $ConnectionStatus = $False
@@ -314,7 +314,7 @@ If ($CSVFile){
     [array]$CIMCList += (get-ServerList -CSVFile $CSVFile)
 }
 
-if ($CIMCList -eq $null){
+if ($null -eq $CIMCList){
     write-screen -type FAIL -message "No machines recieved in the list to process"
 }
 Function formatReportData{
